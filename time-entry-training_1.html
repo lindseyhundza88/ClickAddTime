@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Entry Training – SLS Operations</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=DM+Serif+Display&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #1B2A4A; --navy-mid: #243659; --blue-accent: #2C5F9E;
+    --blue-light: #4A90D9; --blue-bg: #EBF2FB; --green: #1E7A4A;
+    --green-bg: #E8F5EE; --amber: #B45309; --amber-bg: #FEF3C7;
+    --red: #9B1C1C; --red-bg: #FEE2E2; --text: #1B2236;
+    --text-mid: #4A5568; --text-light: #718096; --border: #D1DCF0;
+    --surface: #F7F9FC; --white: #FFFFFF;
+  }
+  body { font-family: 'Inter', sans-serif; background: var(--surface); color: var(--text); min-height: 100vh; }
+
+  /* ── Header ── */
+  .header { background: var(--navy); color: white; padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; }
+  .header-title { font-family: 'DM Serif Display', serif; font-size: 1.3rem; }
+  .header-sub { font-size: 0.75rem; color: #A8BEDD; margin-top: 2px; }
+  .progress-wrap { display: flex; align-items: center; gap: 12px; }
+  .progress-label { font-size: 0.75rem; color: #A8BEDD; }
+  .progress-bar-outer { width: 160px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; }
+  .progress-bar-inner { height: 100%; border-radius: 3px; background: var(--blue-light); transition: width 0.4s ease; }
+
+  .main { max-width: 980px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ── Step nav ── */
+  .step-nav { display: flex; margin-bottom: 36px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .step-btn { flex: 1; padding: 14px 10px; background: white; border: none; border-right: 1px solid var(--border); cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 500; color: var(--text-light); transition: background 0.2s, color 0.2s; text-align: center; line-height: 1.3; }
+  .step-btn:last-child { border-right: none; }
+  .step-btn.active { background: var(--navy); color: white; }
+  .step-btn.done { background: var(--blue-bg); color: var(--blue-accent); }
+  .step-btn .step-num { display: block; font-size: 0.65rem; margin-bottom: 3px; opacity: 0.7; }
+
+  /* ── Card ── */
+  .card { background: white; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .card-header { background: var(--navy-mid); color: white; padding: 20px 28px; display: flex; align-items: flex-start; gap: 16px; }
+  .step-badge { background: var(--blue-light); color: white; font-size: 0.7rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; white-space: nowrap; margin-top: 2px; }
+  .card-title { font-family: 'DM Serif Display', serif; font-size: 1.35rem; line-height: 1.2; }
+  .card-body { padding: 28px; }
+
+  /* ── Warning box ── */
+  .warning-box { background: var(--amber-bg); border: 1px solid #FCD34D; border-radius: 8px; padding: 14px 16px; font-size: 0.85rem; color: var(--amber); line-height: 1.5; }
+  .warning-box strong { font-weight: 600; }
+
+  /* ══════════════════════════════════════════
+     STEP 4.1 — INTERACTIVE DASHBOARD SIM
+  ══════════════════════════════════════════ */
+
+  /* Outer layout: coach left, sim right */
+  .sim-wrap { display: grid; grid-template-columns: 260px 1fr; gap: 24px; }
+  @media (max-width: 700px) { .sim-wrap { grid-template-columns: 1fr; } }
+
+  /* Coach panel */
+  .coach-panel { background: var(--navy); color: white; border-radius: 10px; padding: 20px; display: flex; flex-direction: column; min-height: 380px; }
+  .coach-field-name { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #A8BEDD; margin-bottom: 6px; }
+  .coach-tip { font-size: 0.875rem; line-height: 1.6; color: #E2EBF8; flex: 1; }
+  .coach-tip strong { color: white; }
+  .task-progress { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .task-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: #A8BEDD; transition: color 0.2s; }
+  .task-row.done { color: #6EE7A8; }
+  .task-row.active { color: white; font-weight: 600; }
+  .task-icon { font-size: 0.85rem; width: 18px; text-align: center; }
+
+  /* ── Fake dashboard (before clicking Add Time) ── */
+  .dash-sim { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 0.8rem; }
+  .dash-topbar { background: #1B2A4A; color: white; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; font-weight: 500; }
+  .dash-topbar-title { font-family: 'DM Serif Display', serif; font-size: 1rem; }
+  .add-time-btn { background: #2C6FBA; color: white; border: none; border-radius: 5px; padding: 7px 16px; font-size: 0.78rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.15s, transform 0.1s, box-shadow 0.15s; box-shadow: 0 2px 6px rgba(44,95,158,0.3); }
+  .add-time-btn:hover { background: #1B5299; box-shadow: 0 4px 12px rgba(44,95,158,0.4); }
+  .add-time-btn:active { transform: scale(0.97); }
+  .add-time-btn.pulsing { animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 2px 6px rgba(44,95,158,0.3); } 50% { box-shadow: 0 0 0 6px rgba(74,144,217,0.25), 0 2px 6px rgba(44,95,158,0.3); } }
+
+  .dash-body { background: #F0F4FA; padding: 20px; min-height: 200px; }
+  .dash-body-inner { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 20px; color: var(--text-light); font-size: 0.82rem; text-align: center; min-height: 160px; display: flex; align-items: center; justify-content: center; }
+  .dash-hint { font-size: 0.78rem; color: var(--blue-accent); text-align: center; margin-top: 10px; font-style: italic; }
+
+  /* ── New Time Entry modal ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: white; border-radius: 10px; width: 620px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: modalIn 0.2s ease; }
+  @keyframes modalIn { from { transform: scale(0.94) translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal-titlebar { background: #3B6DB5; color: white; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; font-weight: 500; border-radius: 10px 10px 0 0; }
+  .modal-timer { font-size: 0.73rem; background: rgba(0,0,0,0.25); padding: 3px 9px; border-radius: 4px; display: flex; align-items: center; gap: 6px; cursor: pointer; position: relative; }
+  .modal-timer:hover .timer-tooltip { display: block; }
+  .timer-tooltip { display: none; position: absolute; top: 110%; right: 0; background: #1B2A4A; color: white; font-size: 0.7rem; padding: 6px 10px; border-radius: 5px; white-space: nowrap; z-index: 10; line-height: 1.4; width: 200px; }
+  .no-use { background: #FEE2E2; color: #9B1C1C; font-size: 0.63rem; padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+  .modal-body { padding: 18px 20px; font-size: 0.78rem; }
+  .modal-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+  .modal-row { display: grid; grid-template-columns: 86px 1fr; gap: 4px 10px; align-items: center; margin-bottom: 9px; }
+  .modal-lbl { color: var(--text-light); text-align: right; font-size: 0.73rem; }
+  .modal-field { border: 1px solid #c8d6e8; border-radius: 3px; padding: 4px 8px; background: #F8FAFD; color: var(--text); font-size: 0.74rem; height: 24px; display: flex; align-items: center; }
+  .modal-field.autofill { color: var(--blue-accent); font-style: italic; }
+  .modal-field.dimmed { color: #bbb; }
+  .modal-divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+  .modal-desc { border: 1px solid #c8d6e8; border-radius: 3px; background: #F8FAFD; height: 46px; margin-bottom: 10px; width: 100%; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .modal-btn { padding: 6px 13px; border-radius: 4px; font-size: 0.73rem; font-weight: 500; font-family: 'Inter', sans-serif; border: none; cursor: pointer; }
+  .modal-btn.primary { background: #2C6FBA; color: white; }
+  .modal-btn.secondary { background: #5A7FAE; color: white; }
+  .modal-btn.tertiary { background: #7298C0; color: white; }
+  .modal-btn.cancel-btn { background: #e0e0e0; color: #555; }
+
+  /* Timer warning state */
+  .timer-running { display: none; }
+  .timer-running.show { display: flex; }
+  .timer-warning-bar { background: var(--red-bg); border: 1px solid #FCA5A5; border-radius: 7px; padding: 12px 14px; margin-bottom: 14px; font-size: 0.82rem; color: var(--red); line-height: 1.5; display: flex; align-items: flex-start; gap: 10px; }
+  .timer-warning-bar strong { font-weight: 600; }
+  .stop-timer-btn { margin-top: 8px; padding: 5px 12px; background: var(--red); color: white; border: none; border-radius: 4px; font-size: 0.73rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap; }
+  .stop-timer-btn:hover { background: #7B1616; }
+  .timer-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* Step complete banner */
+  .step-complete { display: none; background: var(--green-bg); border: 1px solid #6EE7A8; border-radius: 8px; padding: 16px 20px; text-align: center; margin-top: 20px; }
+  .step-complete.show { display: block; }
+  .step-complete h3 { font-family: 'DM Serif Display', serif; font-size: 1.1rem; color: var(--green); margin-bottom: 4px; }
+  .step-complete p { font-size: 0.85rem; color: var(--green); }
+
+  /* ══════════════════════════════════════════
+     STEP 4.2 — INTERACTIVE FORM
+  ══════════════════════════════════════════ */
+  .sim-wrap2 { display: grid; grid-template-columns: 300px 1fr; gap: 24px; }
+  @media (max-width: 700px) { .sim-wrap2 { grid-template-columns: 1fr; } }
+
+  .coach-panel2 { background: var(--navy); color: white; border-radius: 10px; padding: 20px; display: flex; flex-direction: column; min-height: 420px; }
+  .field-progress { margin-top: 12px; }
+  .field-progress-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: #A8BEDD; margin-bottom: 6px; transition: color 0.2s; }
+  .field-progress-row.done { color: #6EE7A8; }
+  .field-progress-row.active { color: white; font-weight: 600; }
+  .fp-icon { font-size: 0.85rem; width: 18px; text-align: center; }
+
+  /* Interactive form */
+  .sim-form { background: white; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 0.82rem; }
+  .sim-titlebar { background: #3B6DB5; color: white; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; font-weight: 500; }
+  .sim-timer-badge { font-size: 0.73rem; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 4px; display: flex; align-items: center; gap: 6px; }
+  .sim-no-use { background: #FEE2E2; color: #9B1C1C; font-size: 0.63rem; padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+  .sim-body { padding: 16px 18px; }
+  .sim-section { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; margin-bottom: 12px; }
+  .sim-field-wrap { margin-bottom: 10px; position: relative; }
+  .sim-field-label { font-size: 0.72rem; color: var(--text-light); margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
+  .sim-field-label .req { color: #E53E3E; font-size: 0.65rem; }
+  .sim-input, .sim-select { width: 100%; padding: 5px 8px; font-size: 0.78rem; font-family: 'Inter', sans-serif; border: 1.5px solid #c8d6e8; border-radius: 4px; background: #F8FAFD; color: var(--text); outline: none; transition: border-color 0.15s, box-shadow 0.15s; height: 28px; }
+  .sim-input:focus, .sim-select:focus { border-color: var(--blue-light); box-shadow: 0 0 0 2px rgba(74,144,217,0.18); background: white; }
+  .sim-input.field-correct { border-color: var(--green); background: var(--green-bg); }
+  .sim-input.field-wrong { border-color: #E53E3E; background: var(--red-bg); }
+  .sim-select { cursor: pointer; }
+  .sim-select.field-correct { border-color: var(--green); background: var(--green-bg); }
+  .sim-dropdown { position: absolute; top: calc(100% + 2px); left: 0; right: 0; background: white; border: 1.5px solid var(--blue-light); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 100; max-height: 160px; overflow-y: auto; display: none; }
+  .sim-dropdown.open { display: block; }
+  .sim-dropdown-item { padding: 7px 10px; font-size: 0.78rem; cursor: pointer; color: var(--text); transition: background 0.1s; }
+  .sim-dropdown-item:hover { background: var(--blue-bg); color: var(--blue-accent); }
+  .sim-dropdown-item .item-label { font-weight: 500; }
+  .sim-dropdown-item .item-sub { font-size: 0.68rem; color: var(--text-light); margin-top: 1px; }
+  .sim-dropdown-empty { padding: 10px; font-size: 0.78rem; color: var(--text-light); text-align: center; }
+  .field-hint { font-size: 0.71rem; margin-top: 3px; min-height: 16px; line-height: 1.3; }
+  .field-hint.ok { color: var(--green); }
+  .field-hint.err { color: #E53E3E; }
+  .field-hint.tip { color: var(--blue-accent); }
+  .sim-check-row { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-mid); margin-bottom: 8px; }
+  .sim-check-row input[type=checkbox] { accent-color: var(--blue-accent); width: 14px; height: 14px; cursor: default; }
+  .sim-textarea { width: 100%; font-family: 'Inter', sans-serif; font-size: 0.78rem; padding: 6px 8px; border: 1.5px solid #c8d6e8; border-radius: 4px; resize: vertical; min-height: 50px; background: #F8FAFD; outline: none; transition: border-color 0.15s; }
+  .sim-textarea:focus { border-color: var(--blue-light); background: white; }
+  .sim-readonly { height: 28px; padding: 5px 8px; font-size: 0.78rem; background: #F0F4FA; border: 1.5px solid #e2e8f0; border-radius: 4px; color: var(--text-mid); display: flex; align-items: center; }
+  .sim-divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+  .sim-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); margin-top: 4px; }
+  .sim-save-btn { padding: 7px 16px; border-radius: 5px; font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s, opacity 0.2s; }
+  .sim-save-btn.primary { background: #2C6FBA; color: white; }
+  .sim-save-btn.primary:hover { background: #1B5299; }
+  .sim-save-btn.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .sim-save-btn.ghost { background: #e0e0e0; color: #555; }
+  .sim-success { display: none; text-align: center; padding: 32px 24px; }
+  .sim-success.show { display: block; }
+  .sim-success-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .sim-success h3 { font-family: 'DM Serif Display', serif; font-size: 1.3rem; color: var(--navy); margin-bottom: 8px; }
+  .sim-success p { font-size: 0.875rem; color: var(--text-mid); line-height: 1.6; }
+  .sim-retry { margin-top: 16px; padding: 8px 20px; background: var(--navy); color: white; border: none; border-radius: 6px; font-size: 0.82rem; font-weight: 500; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .sim-retry:hover { background: var(--blue-accent); }
+
+  /* Quiz */
+  .quiz-section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-top: 28px; }
+  .quiz-section h3 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-light); margin-bottom: 14px; }
+  .quiz-question { font-size: 0.95rem; font-weight: 500; margin-bottom: 14px; line-height: 1.5; }
+  .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+  .quiz-option { background: white; border: 1.5px solid var(--border); border-radius: 6px; padding: 10px 14px; cursor: pointer; font-size: 0.875rem; color: var(--text-mid); transition: border-color 0.15s, background 0.15s; display: flex; align-items: center; gap: 10px; }
+  .quiz-option:hover { border-color: var(--blue-light); background: var(--blue-bg); }
+  .quiz-option.correct { border-color: var(--green); background: var(--green-bg); color: var(--green); pointer-events: none; }
+  .quiz-option.wrong { border-color: #E53E3E; background: var(--red-bg); color: var(--red); pointer-events: none; }
+  .quiz-option.disabled { pointer-events: none; }
+  .quiz-feedback { margin-top: 12px; font-size: 0.85rem; padding: 10px 14px; border-radius: 6px; display: none; line-height: 1.5; }
+  .quiz-feedback.show { display: block; }
+  .quiz-feedback.correct { background: var(--green-bg); color: var(--green); border: 1px solid #6EE7A8; }
+  .quiz-feedback.wrong { background: var(--red-bg); color: var(--red); border: 1px solid #FCA5A5; }
+
+  /* Nav */
+  .nav-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; }
+  .nav-btn { padding: 10px 24px; border-radius: 7px; font-family: 'Inter', sans-serif; font-size: 0.875rem; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s, background 0.2s; }
+  .nav-btn.primary { background: var(--navy); color: white; }
+  .nav-btn.primary:hover { background: var(--blue-accent); }
+  .nav-btn.secondary { background: white; color: var(--navy); border: 1.5px solid var(--border); }
+  .nav-btn.secondary:hover { border-color: var(--navy); }
+  .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .completion { text-align: center; padding: 48px 24px; display: none; }
+  .completion.show { display: block; }
+  .completion-icon { font-size: 3rem; margin-bottom: 16px; }
+  .completion h2 { font-family: 'DM Serif Display', serif; font-size: 1.6rem; margin-bottom: 10px; color: var(--navy); }
+  .completion p { color: var(--text-mid); font-size: 0.95rem; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">Time Entry Training</div>
+    <div class="header-sub">SLS Operations · Billing System</div>
+  </div>
+  <div class="progress-wrap">
+    <span class="progress-label" id="progressLabel">Step 1 of 2</span>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar" style="width:50%"></div></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="step-nav">
+    <button class="step-btn active" onclick="goToStep(0)" id="navBtn0"><span class="step-num">4.1</span>Click Add Time</button>
+    <button class="step-btn" onclick="goToStep(1)" id="navBtn1"><span class="step-num">4.2</span>Fill In the Fields</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       STEP 0 — INTERACTIVE DASHBOARD SIM
+  ═══════════════════════════════════════ -->
+  <div id="step0">
+    <div class="card">
+      <div class="card-header">
+        <span class="step-badge">Step 4.1</span>
+        <div><div class="card-title">Click Add Time</div></div>
+      </div>
+      <div class="card-body">
+
+        <p style="font-size:0.875rem;color:var(--text-mid);margin-bottom:24px;line-height:1.6;">
+          Follow the steps below just like you would in the real billing system. The coach panel will guide you through each action.
+        </p>
+
+        <div class="sim-wrap">
+
+          <!-- Coach -->
+          <div class="coach-panel" id="coach41">
+            <div class="coach-field-name" id="coach41-label">Task 1 of 3</div>
+            <div class="coach-tip" id="coach41-tip">Click the blue <strong>Add Time</strong> button in the top right of the dashboard to open a new time entry.</div>
+            <div class="task-progress">
+              <div class="task-row active" id="task-addtime"><span class="task-icon">→</span> Click Add Time</div>
+              <div class="task-row" id="task-timer"><span class="task-icon">○</span> Handle the Timer</div>
+              <div class="task-row" id="task-review"><span class="task-icon">○</span> Review the form</div>
+            </div>
+          </div>
+
+          <!-- Dashboard sim -->
+          <div>
+            <!-- Stage 0: Dashboard view -->
+            <div id="stage-dashboard">
+              <div class="dash-sim">
+                <div class="dash-topbar">
+                  <span class="dash-topbar-title">Billing Dashboard</span>
+                  <button class="add-time-btn pulsing" id="addTimeBtn" onclick="clickAddTime()">+ Add Time</button>
+                </div>
+                <div class="dash-body">
+                  <div class="dash-body-inner">
+                    <span style="color:var(--text-light);font-size:0.82rem;">Your recent time entries will appear here.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="dash-hint" id="dashHint">👆 Click the blue Add Time button above to begin</div>
+            </div>
+
+            <!-- Stage 1: Modal with timer running (shown after clicking Add Time) -->
+            <div id="stage-timerwarning" style="display:none;">
+              <!-- Timer warning bar -->
+              <div class="timer-warning-bar" id="timerWarningBar">
+                <div style="flex:1;">
+                  <strong>⚠ The built-in Timer is running!</strong><br>
+                  The timer has auto-started (<span class="timer-count" id="timerCount">0:03</span>). Do <strong>not</strong> use it — it won't capture your end time correctly and can cause double billing.<br>
+                  <button class="stop-timer-btn" onclick="stopTimer()">Stop & Dismiss Timer</button>
+                </div>
+              </div>
+              <!-- Mini modal preview -->
+              <div class="dash-sim">
+                <div class="modal-titlebar" style="border-radius:8px 8px 0 0;">
+                  New Time Entry
+                  <div class="modal-timer" id="modalTimerBadge">
+                    ⏱ <span id="modalTimerDisplay">00:00:00</span>
+                    <span class="no-use">✕ Do Not Use</span>
+                    <div class="timer-tooltip">This built-in timer will NOT correctly capture your end time. Always dismiss it and enter your end time manually.</div>
+                  </div>
+                </div>
+                <div class="modal-body" style="opacity:0.5;pointer-events:none;">
+                  <div class="modal-two-col">
+                    <div>
+                      <div class="modal-row"><span class="modal-lbl">Client:</span><span class="modal-field dimmed">Search</span></div>
+                      <div class="modal-row"><span class="modal-lbl">Matter:</span><span class="modal-field dimmed">Search</span></div>
+                      <div class="modal-row"><span class="modal-lbl">Activity:</span><span class="modal-field dimmed">Select</span></div>
+                    </div>
+                    <div>
+                      <div class="modal-row"><span class="modal-lbl">Entry Type:</span><span class="modal-field dimmed">Hourly Work</span></div>
+                      <div class="modal-row"><span class="modal-lbl">Start Time:</span><span class="modal-field autofill" id="previewStartTime">—</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p style="font-size:0.8rem;color:var(--blue-accent);text-align:center;margin-top:8px;font-style:italic;">Stop the timer first before filling in the form.</p>
+            </div>
+
+            <!-- Stage 2: Timer stopped, form unlocked -->
+            <div id="stage-formready" style="display:none;">
+              <div style="background:var(--green-bg);border:1px solid #6EE7A8;border-radius:7px;padding:12px 14px;margin-bottom:14px;font-size:0.82rem;color:var(--green);line-height:1.5;">
+                ✓ <strong>Timer dismissed.</strong> Your Start Time has been auto-stamped. Review the open form below, then click "Got it" to continue.
+              </div>
+              <div class="dash-sim">
+                <div class="modal-titlebar" style="border-radius:8px 8px 0 0;">
+                  New Time Entry <span style="font-size:0.73rem;background:rgba(0,0,0,0.25);padding:2px 8px;border-radius:4px;">⏱ 00:00:00 — stopped</span>
+                </div>
+                <div class="modal-body">
+                  <div class="modal-two-col">
+                    <div>
+                      <div class="modal-row"><span class="modal-lbl">For User:</span><span class="modal-field">Account, Test</span></div>
+                      <div class="modal-row"><span class="modal-lbl">Client:</span><span class="modal-field dimmed">Search</span></div>
+                      <div class="modal-row"><span class="modal-lbl">Matter:</span><span class="modal-field dimmed">Search</span></div>
+                      <div class="modal-row"><span class="modal-lbl">Activity:</span><span class="modal-field dimmed">Select Activity</span></div>
+                    </div>
+                    <div>
+                      <div class="modal-row"><span class="modal-lbl">Entry Type:</span><span class="modal-field">Hourly Work</span></div>
+                      <div class="modal-row"><span class="modal-lbl">Billable:</span><span class="modal-field" style="width:20px;">✓</span></div>
+                      <div class="modal-row"><span class="modal-lbl">Start Time:</span><span class="modal-field autofill" id="formReadyStart">—</span></div>
+                      <div class="modal-row"><span class="modal-lbl">End Time:</span><span class="modal-field dimmed">Enter manually</span></div>
+                    </div>
+                  </div>
+                  <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+                    <button class="modal-btn primary" onclick="finishReview()">Got it — move to Step 4.2 →</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step complete -->
+            <div class="step-complete" id="step41-complete">
+              <h3>✓ Step 4.1 Complete</h3>
+              <p>You opened the form and handled the Timer correctly. Move to Step 4.2 to fill in the fields.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quiz -->
+        <div class="quiz-section" style="margin-top:28px;">
+          <h3>Quick Check</h3>
+          <div class="quiz-question">You've opened a new time entry. You notice the built-in Timer is running. What should you do?</div>
+          <div class="quiz-options" id="opts0">
+            <div class="quiz-option" onclick="answer(0,false,this)"><span>◯</span> Leave the Timer running — it will auto-fill the end time.</div>
+            <div class="quiz-option" onclick="answer(0,true,this)"><span>◯</span> Stop/dismiss the Timer. Enter your end time manually when done.</div>
+            <div class="quiz-option" onclick="answer(0,false,this)"><span>◯</span> Use the Timer only if you forget your start time.</div>
+          </div>
+          <div class="quiz-feedback" id="fb0"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       STEP 1 — INTERACTIVE FORM
+  ═══════════════════════════════════════ -->
+  <div id="step1" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="step-badge">Step 4.2</span>
+        <div><div class="card-title">Fill In the Fields</div></div>
+      </div>
+      <div class="card-body">
+        <p style="font-size:0.875rem;color:var(--text-mid);margin-bottom:24px;line-height:1.6;">
+          Practice filling out a real time entry below. The coaching panel on the left will guide you through each field.
+        </p>
+        <div class="sim-wrap2">
+          <!-- Coach -->
+          <div class="coach-panel2" id="coachPanel">
+            <div class="coach-field-name" id="coachFieldName">Get started</div>
+            <div class="coach-tip" id="coachTip" style="font-size:0.875rem;line-height:1.6;color:#E2EBF8;flex:1;">Click any field in the form to begin. Each field has specific requirements.</div>
+            <div class="field-progress" id="fieldProgress">
+              <div class="field-progress-row" id="fp-client"><span class="fp-icon">○</span> Client</div>
+              <div class="field-progress-row" id="fp-matter"><span class="fp-icon">○</span> Matter</div>
+              <div class="field-progress-row" id="fp-activity"><span class="fp-icon">○</span> Activity</div>
+              <div class="field-progress-row" id="fp-entrytype"><span class="fp-icon">○</span> Entry Type</div>
+              <div class="field-progress-row" id="fp-endtime"><span class="fp-icon">○</span> End Time</div>
+              <div class="field-progress-row" id="fp-description"><span class="fp-icon">○</span> Private Description</div>
+            </div>
+          </div>
+          <!-- Form -->
+          <div>
+            <div class="sim-form" id="simForm">
+              <div class="sim-titlebar">New Time Entry <div class="sim-timer-badge">⏱ 00:00:00 <span class="sim-no-use">✕ Do Not Use</span></div></div>
+              <div class="sim-body">
+                <div class="sim-section">
+                  <div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">For User</div><div class="sim-readonly">Account, Test</div></div>
+                    <div class="sim-field-wrap" id="wrap-client">
+                      <div class="sim-field-label">Client <span class="req">*</span></div>
+                      <input type="text" class="sim-input" id="f-client" placeholder="Search client…" autocomplete="off" onfocus="onFocus('client')" oninput="onClientInput()" onblur="onClientBlur()">
+                      <div class="sim-dropdown" id="dd-client"></div>
+                      <div class="field-hint" id="hint-client"></div>
+                    </div>
+                    <div class="sim-field-wrap" id="wrap-matter">
+                      <div class="sim-field-label">Matter <span class="req">*</span></div>
+                      <input type="text" class="sim-input" id="f-matter" placeholder="Search matter…" autocomplete="off" onfocus="onFocus('matter')" oninput="onMatterInput()" onblur="onMatterBlur()">
+                      <div class="sim-dropdown" id="dd-matter"></div>
+                      <div class="field-hint" id="hint-matter"></div>
+                    </div>
+                    <div class="sim-field-wrap" id="wrap-activity">
+                      <div class="sim-field-label">Activity <span class="req">*</span></div>
+                      <input type="text" class="sim-input" id="f-activity" placeholder="Type 'SLS' to filter…" autocomplete="off" onfocus="onFocus('activity')" oninput="onActivityInput()" onblur="onActivityBlur()">
+                      <div class="sim-dropdown" id="dd-activity"></div>
+                      <div class="field-hint" id="hint-activity"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="sim-field-wrap" id="wrap-entrytype">
+                      <div class="sim-field-label">Entry Type <span class="req">*</span></div>
+                      <select class="sim-select" id="f-entrytype" onfocus="onFocus('entrytype')" onchange="onEntryTypeChange()">
+                        <option value="">— Select —</option>
+                        <option value="hourly">Hourly Work</option>
+                        <option value="flat">Flat Fee</option>
+                        <option value="contingency">Contingency</option>
+                        <option value="nonbillable">Non-Billable</option>
+                      </select>
+                      <div class="field-hint" id="hint-entrytype"></div>
+                    </div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">Overtime</div><div class="sim-check-row"><input type="checkbox" disabled> Overtime</div></div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">Billable</div><div class="sim-check-row"><input type="checkbox" id="f-billable" checked> Billable</div></div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">Date Created</div><div class="sim-readonly" id="f-datecreated"></div></div>
+                  </div>
+                </div>
+                <hr class="sim-divider">
+                <div class="sim-field-wrap" id="wrap-description">
+                  <div class="sim-field-label">Private Description</div>
+                  <textarea class="sim-textarea" id="f-description" placeholder="Enter a brief description of work performed…" onfocus="onFocus('description')" onblur="onDescriptionBlur()"></textarea>
+                  <div class="field-hint" id="hint-description"></div>
+                </div>
+                <hr class="sim-divider">
+                <div class="sim-section">
+                  <div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">Date of Work</div><div class="sim-readonly" id="f-dateofwork"></div></div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">Start Time <span style="color:var(--blue-accent);font-size:0.68rem;">(auto-stamped)</span></div><div class="sim-readonly" style="color:var(--blue-accent);font-style:italic;" id="f-starttime"></div></div>
+                    <div class="sim-field-wrap" id="wrap-endtime">
+                      <div class="sim-field-label">End Time <span class="req">*</span></div>
+                      <input type="text" class="sim-input" id="f-endtime" placeholder="e.g. 3:45pm" onfocus="onFocus('endtime')" oninput="onEndTimeInput()" onblur="onEndTimeBlur()">
+                      <div class="field-hint" id="hint-endtime"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">Labor Time (hrs)</div><div class="sim-readonly" id="f-labortime">—</div></div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">Rate $</div><div class="sim-readonly">$0.00</div></div>
+                    <div class="sim-field-wrap"><div class="sim-field-label">Billable (hrs)</div><div class="sim-readonly" id="f-billablehrs">0.00</div></div>
+                  </div>
+                </div>
+                <div class="sim-footer">
+                  <button class="sim-save-btn ghost" onclick="resetForm()">Cancel</button>
+                  <button class="sim-save-btn primary" id="saveBtn" onclick="trySave()" disabled>Save &amp; Close</button>
+                </div>
+              </div>
+            </div>
+            <div class="sim-success" id="simSuccess">
+              <div class="sim-success-icon">✅</div>
+              <h3>Entry Saved Successfully!</h3>
+              <p><strong>Client:</strong> SLS Operations<br><strong>Matter:</strong> <span id="ss-matter"></span><br><strong>Activity:</strong> SLS_Paralegal<br><strong>Entry Type:</strong> Hourly Work<br><strong>Time:</strong> <span id="ss-time"></span></p>
+              <button class="sim-retry" onclick="resetForm()">Try Again ↺</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="quiz-section">
+          <h3>Quick Check</h3>
+          <div class="quiz-question">When entering a time entry for a Mass Tort case, what format should the Matter name follow?</div>
+          <div class="quiz-options" id="opts1">
+            <div class="quiz-option" onclick="answer(1,false,this)"><span>◯</span> Just the client's last name</div>
+            <div class="quiz-option" onclick="answer(1,true,this)"><span>◯</span> The case name followed by 'SLS Ops' (e.g., 'Dexcom SLS Ops')</div>
+            <div class="quiz-option" onclick="answer(1,false,this)"><span>◯</span> The docket number only</div>
+            <div class="quiz-option" onclick="answer(1,false,this)"><span>◯</span> Any unique identifier for the case</div>
+          </div>
+          <div class="quiz-feedback" id="fb1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="completion" id="completion">
+    <div class="completion-icon">🎉</div>
+    <h2>Module Complete</h2>
+    <p>You've completed both steps of the Time Entry training.<br>You're ready to log time correctly in the billing system.</p>
+  </div>
+
+  <div class="nav-footer">
+    <button class="nav-btn secondary" id="backBtn" onclick="navigate(-1)" disabled>← Back</button>
+    <button class="nav-btn primary" id="nextBtn" onclick="navigate(1)">Next →</button>
+  </div>
+</div>
+
+<script>
+// ─── Step navigation ─────────────────────────────────────────────
+let currentStep = 0;
+const totalSteps = 2;
+const quizAnswered = [false, false];
+
+function goToStep(i) {
+  document.getElementById('step' + currentStep).style.display = 'none';
+  document.getElementById('completion').classList.remove('show');
+  currentStep = i;
+  if (currentStep < totalSteps) document.getElementById('step' + currentStep).style.display = 'block';
+  else document.getElementById('completion').classList.add('show');
+  updateNav();
+}
+function navigate(dir) { const n = currentStep + dir; if (n >= 0 && n <= totalSteps) goToStep(n); }
+function updateNav() {
+  for (let i = 0; i < totalSteps; i++) {
+    const b = document.getElementById('navBtn' + i);
+    b.classList.remove('active','done');
+    if (i === currentStep) b.classList.add('active');
+    else if (i < currentStep) b.classList.add('done');
+  }
+  const pct = Math.min(((currentStep + 1) / totalSteps) * 100, 100);
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = currentStep < totalSteps ? `Step ${currentStep+1} of ${totalSteps}` : 'Complete';
+  document.getElementById('backBtn').disabled = currentStep === 0;
+  document.getElementById('nextBtn').textContent = currentStep >= totalSteps - 1 ? 'Finish ✓' : 'Next →';
+  document.getElementById('nextBtn').disabled = currentStep >= totalSteps;
+}
+
+// ─── Quiz ─────────────────────────────────────────────────────────
+function answer(idx, correct, el) {
+  if (quizAnswered[idx]) return;
+  quizAnswered[idx] = true;
+  document.getElementById('opts' + idx).querySelectorAll('.quiz-option').forEach(o => { o.classList.add('disabled'); o.style.pointerEvents = 'none'; });
+  el.classList.add(correct ? 'correct' : 'wrong');
+  el.querySelector('span').textContent = correct ? '✓' : '✗';
+  const fb = document.getElementById('fb' + idx);
+  fb.classList.add('show', correct ? 'correct' : 'wrong');
+  const msgs = [
+    ['✓ Correct! Always stop/dismiss the Timer and enter your end time manually to ensure accurate billing.',
+     '✗ Not quite. The Timer does not capture end time correctly and risks double billing. Always dismiss it.'],
+    ['✓ Correct! Always use the format "[Case Name] SLS Ops" — for example, "Dexcom SLS Ops" for Mass Tort cases.',
+     '✗ Not quite. The Matter must follow the "SLS Ops" format — for example, "Dexcom SLS Ops".']
+  ];
+  fb.textContent = correct ? msgs[idx][0] : msgs[idx][1];
+}
+
+// ─── Step 4.1 Simulation ──────────────────────────────────────────
+const now = new Date();
+const dateStr = now.toLocaleDateString('en-US', { month:'2-digit', day:'2-digit', year:'numeric' });
+const startH = now.getHours(), startM = now.getMinutes();
+const startAmPm = startH >= 12 ? 'pm' : 'am';
+const startH12 = startH % 12 || 12;
+const startTimeStr = `${startH12}:${String(startM).padStart(2,'0')}${startAmPm}`;
+
+let timerInterval = null;
+let timerSecs = 0;
+let stage = 0; // 0=dashboard, 1=timer warning, 2=form ready
+
+function clickAddTime() {
+  stage = 1;
+  document.getElementById('stage-dashboard').style.display = 'none';
+  document.getElementById('stage-timerwarning').style.display = 'block';
+  document.getElementById('previewStartTime').textContent = startTimeStr;
+  // Update coach
+  document.getElementById('coach41-label').textContent = 'Task 2 of 3';
+  document.getElementById('coach41-tip').innerHTML = 'The built-in Timer has auto-started. <strong>Do NOT use it</strong> — it will not capture your end time correctly and can create the appearance of double billing. Click <strong>Stop &amp; Dismiss Timer</strong> to continue.';
+  document.getElementById('task-addtime').className = 'task-row done'; document.getElementById('task-addtime').querySelector('.task-icon').textContent = '✓';
+  document.getElementById('task-timer').className = 'task-row active'; document.getElementById('task-timer').querySelector('.task-icon').textContent = '→';
+  // Start fake timer
+  timerSecs = 3;
+  updateTimerDisplay();
+  timerInterval = setInterval(() => { timerSecs++; updateTimerDisplay(); }, 1000);
+}
+
+function updateTimerDisplay() {
+  const h = Math.floor(timerSecs / 3600);
+  const m = Math.floor((timerSecs % 3600) / 60);
+  const s = timerSecs % 60;
+  const formatted = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const el = document.getElementById('modalTimerDisplay');
+  if (el) el.textContent = formatted;
+  // Running count in warning bar
+  const mins = Math.floor(timerSecs / 60), secs = timerSecs % 60;
+  const tc = document.getElementById('timerCount');
+  if (tc) tc.textContent = `${mins}:${String(secs).padStart(2,'0')}`;
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  stage = 2;
+  document.getElementById('stage-timerwarning').style.display = 'none';
+  document.getElementById('stage-formready').style.display = 'block';
+  document.getElementById('formReadyStart').textContent = startTimeStr;
+  // Update coach
+  document.getElementById('coach41-label').textContent = 'Task 3 of 3';
+  document.getElementById('coach41-tip').innerHTML = 'Timer dismissed. Your <strong>Start Time</strong> has been auto-stamped — you don\'t need to enter it. Review the open form, then click <strong>"Got it"</strong> to continue to Step 4.2.';
+  document.getElementById('task-timer').className = 'task-row done'; document.getElementById('task-timer').querySelector('.task-icon').textContent = '✓';
+  document.getElementById('task-review').className = 'task-row active'; document.getElementById('task-review').querySelector('.task-icon').textContent = '→';
+}
+
+function finishReview() {
+  document.getElementById('stage-formready').style.display = 'none';
+  document.getElementById('step41-complete').classList.add('show');
+  document.getElementById('task-review').className = 'task-row done'; document.getElementById('task-review').querySelector('.task-icon').textContent = '✓';
+  document.getElementById('coach41-label').textContent = 'Step 4.1 Done!';
+  document.getElementById('coach41-tip').innerHTML = 'You\'ve completed Step 4.1. You know how to open a new time entry and handle the Timer correctly. Move to Step 4.2 to fill in the required fields.';
+}
+
+// ─── Step 4.2 Form ────────────────────────────────────────────────
+document.getElementById('f-datecreated').textContent = dateStr;
+document.getElementById('f-dateofwork').textContent = dateStr;
+document.getElementById('f-starttime').textContent = startTimeStr;
+
+const fieldState = { client: false, matter: false, activity: false, entrytype: false, endtime: false, description: false };
+
+const clientOptions = ['SLS Operations','Morgan & Morgan','General Fund'];
+const matterOptions = [
+  { label: 'Dexcom SLS Ops', sub: 'Mass Tort · SLS Operations' },
+  { label: 'Exactech SLS Ops', sub: 'Mass Tort · SLS Operations' },
+  { label: 'Paragard SLS Ops', sub: 'Mass Tort · SLS Operations' },
+  { label: 'CPAP SLS Ops', sub: 'Mass Tort · SLS Operations' },
+  { label: 'Talc SLS Ops', sub: 'Mass Tort · SLS Operations' },
+];
+const activityOptions = [
+  { label: 'Attorney – Research', sub: 'Attorney code' },
+  { label: 'Attorney – Drafting', sub: 'Attorney code' },
+  { label: 'Attorney – Review', sub: 'Attorney code' },
+  { label: 'SLS_Paralegal', sub: 'SLS code ✓ correct' },
+  { label: 'SLS_Admin', sub: 'SLS code' },
+  { label: 'SLS_Review', sub: 'SLS code' },
+];
+
+const coachData = {
+  client: { name: 'Client field', tip: 'Always select <strong>SLS Operations</strong> as the client — this applies to every SLS time entry. Type "SLS" to filter.' },
+  matter: { name: 'Matter field', tip: 'Select the case name followed by <strong>"SLS Ops"</strong> — for example, <strong>Dexcom SLS Ops</strong>. All Mass Tort cases follow this format.' },
+  activity: { name: 'Activity field', tip: 'Type <strong>"SLS"</strong> to filter. Scroll past attorney codes and select <strong>SLS_Paralegal</strong>.' },
+  entrytype: { name: 'Entry Type field', tip: 'Leave as <strong>Hourly Work</strong>. The Billable checkbox should remain checked.' },
+  endtime: { name: 'End Time field', tip: 'Enter the time you finished — e.g. <strong>3:45pm</strong>. Do not use the Timer. Labor time will be calculated automatically.' },
+  description: { name: 'Private Description (optional)', tip: 'Add a brief note about the work performed. This is optional and will not appear on client invoices.' }
+};
+
+function setCoach(key) {
+  const d = coachData[key]; if (!d) return;
+  document.getElementById('coachFieldName').textContent = d.name;
+  document.getElementById('coachTip').innerHTML = d.tip;
+  Object.keys(fieldState).forEach(k => {
+    const row = document.getElementById('fp-' + k); if (!row) return;
+    row.classList.remove('done','active');
+    if (fieldState[k]) { row.classList.add('done'); row.querySelector('.fp-icon').textContent = '✓'; }
+    else if (k === key) { row.classList.add('active'); row.querySelector('.fp-icon').textContent = '→'; }
+    else row.querySelector('.fp-icon').textContent = '○';
+  });
+}
+function onFocus(key) { setCoach(key); }
+
+function onClientInput() {
+  const v = document.getElementById('f-client').value.trim();
+  const dd = document.getElementById('dd-client');
+  if (!v) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+  const f = clientOptions.filter(o => o.toLowerCase().includes(v.toLowerCase()));
+  dd.innerHTML = f.length ? f.map(o => `<div class="sim-dropdown-item" onmousedown="selectClient('${o}')"><div class="item-label">${o}</div></div>`).join('') : '<div class="sim-dropdown-empty">No matches</div>';
+  dd.classList.add('open'); validateClient(false);
+}
+function selectClient(val) { document.getElementById('f-client').value = val; document.getElementById('dd-client').classList.remove('open'); validateClient(true); }
+function validateClient(commit) {
+  const el = document.getElementById('f-client'), v = el.value.trim(), hint = document.getElementById('hint-client');
+  if (v === 'SLS Operations') { el.className = 'sim-input field-correct'; hint.className = 'field-hint ok'; hint.textContent = '✓ Correct — SLS Operations selected'; fieldState.client = true; }
+  else if (commit && v) { el.className = 'sim-input field-wrong'; hint.className = 'field-hint err'; hint.textContent = '✗ Select "SLS Operations"'; fieldState.client = false; }
+  else { hint.className = 'field-hint tip'; hint.textContent = 'Type "SLS" and select SLS Operations'; }
+  checkSaveReady();
+}
+function onClientBlur() { setTimeout(() => { document.getElementById('dd-client').classList.remove('open'); validateClient(true); }, 150); }
+
+function onMatterInput() {
+  const v = document.getElementById('f-matter').value.trim(), dd = document.getElementById('dd-matter');
+  if (!v) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+  const f = matterOptions.filter(o => o.label.toLowerCase().includes(v.toLowerCase()));
+  dd.innerHTML = f.length ? f.map(o => `<div class="sim-dropdown-item" onmousedown="selectMatter('${o.label}')"><div class="item-label">${o.label}</div><div class="item-sub">${o.sub}</div></div>`).join('') : '<div class="sim-dropdown-empty">No matches — try a case name</div>';
+  dd.classList.add('open'); validateMatter(false);
+}
+function selectMatter(val) { document.getElementById('f-matter').value = val; document.getElementById('dd-matter').classList.remove('open'); validateMatter(true); }
+function validateMatter(commit) {
+  const el = document.getElementById('f-matter'), v = el.value.trim(), hint = document.getElementById('hint-matter');
+  const valid = matterOptions.some(o => o.label === v);
+  if (valid) { el.className = 'sim-input field-correct'; hint.className = 'field-hint ok'; hint.textContent = '✓ Matter selected'; fieldState.matter = true; }
+  else if (commit && v) { el.className = 'sim-input field-wrong'; hint.className = 'field-hint err'; hint.textContent = '✗ Select a matter from the list (e.g. Dexcom SLS Ops)'; fieldState.matter = false; }
+  else { hint.className = 'field-hint tip'; hint.textContent = 'Type a case name and select from the list'; }
+  checkSaveReady();
+}
+function onMatterBlur() { setTimeout(() => { document.getElementById('dd-matter').classList.remove('open'); validateMatter(true); }, 150); }
+
+function onActivityInput() {
+  const v = document.getElementById('f-activity').value.trim(), dd = document.getElementById('dd-activity');
+  if (!v) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+  const f = activityOptions.filter(o => o.label.toLowerCase().includes(v.toLowerCase()));
+  dd.innerHTML = f.length ? f.map(o => `<div class="sim-dropdown-item" onmousedown="selectActivity('${o.label}')"><div class="item-label">${o.label}</div><div class="item-sub">${o.sub}</div></div>`).join('') : '<div class="sim-dropdown-empty">No matches</div>';
+  dd.classList.add('open'); validateActivity(false);
+}
+function selectActivity(val) { document.getElementById('f-activity').value = val; document.getElementById('dd-activity').classList.remove('open'); validateActivity(true); }
+function validateActivity(commit) {
+  const el = document.getElementById('f-activity'), v = el.value.trim(), hint = document.getElementById('hint-activity');
+  if (v === 'SLS_Paralegal') { el.className = 'sim-input field-correct'; hint.className = 'field-hint ok'; hint.textContent = '✓ SLS_Paralegal — correct'; fieldState.activity = true; }
+  else if (v.startsWith('Attorney') && commit) { el.className = 'sim-input field-wrong'; hint.className = 'field-hint err'; hint.textContent = '✗ Attorney codes are not valid — select SLS_Paralegal'; fieldState.activity = false; }
+  else if (commit && v) { el.className = 'sim-input field-wrong'; hint.className = 'field-hint err'; hint.textContent = '✗ Select SLS_Paralegal from the list'; fieldState.activity = false; }
+  else { hint.className = 'field-hint tip'; hint.textContent = 'Type "SLS" and select SLS_Paralegal'; }
+  checkSaveReady();
+}
+function onActivityBlur() { setTimeout(() => { document.getElementById('dd-activity').classList.remove('open'); validateActivity(true); }, 150); }
+
+function onEntryTypeChange() {
+  const el = document.getElementById('f-entrytype'), v = el.value, hint = document.getElementById('hint-entrytype');
+  if (v === 'hourly') { el.classList.add('field-correct'); hint.className = 'field-hint ok'; hint.textContent = '✓ Hourly Work — correct'; fieldState.entrytype = true; }
+  else if (!v) { el.classList.remove('field-correct'); hint.className = 'field-hint tip'; hint.textContent = 'Select Hourly Work'; fieldState.entrytype = false; }
+  else { el.classList.remove('field-correct'); hint.className = 'field-hint err'; hint.textContent = '✗ SLS entries should use Hourly Work'; fieldState.entrytype = false; }
+  checkSaveReady();
+}
+
+function parseTime(s) {
+  const m = s.trim().toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!m) return null;
+  let h = parseInt(m[1]), min = m[2] ? parseInt(m[2]) : 0, ampm = m[3];
+  if (!ampm) ampm = (h >= 8 && h <= 11) ? 'am' : 'pm';
+  if (ampm === 'pm' && h !== 12) h += 12;
+  if (ampm === 'am' && h === 12) h = 0;
+  return h * 60 + min;
+}
+function onEndTimeInput() { validateEndTime(false); }
+function validateEndTime(commit) {
+  const el = document.getElementById('f-endtime'), v = el.value.trim(), hint = document.getElementById('hint-endtime');
+  const startMins = startH * 60 + startM;
+  if (!v) { el.className = 'sim-input'; hint.className = 'field-hint tip'; hint.textContent = 'Enter your end time (e.g. 3:45pm)'; fieldState.endtime = false; updateLabor(null); checkSaveReady(); return; }
+  const end = parseTime(v);
+  if (!end) { if (commit) { el.className = 'sim-input field-wrong'; hint.className = 'field-hint err'; hint.textContent = '✗ Unrecognized format — try 3:45pm'; } fieldState.endtime = false; updateLabor(null); checkSaveReady(); return; }
+  if (end <= startMins) { el.className = 'sim-input field-wrong'; hint.className = 'field-hint err'; hint.textContent = `✗ End time must be after start time (${startTimeStr})`; fieldState.endtime = false; updateLabor(null); }
+  else { el.className = 'sim-input field-correct'; const diff = end - startMins; hint.className = 'field-hint ok'; hint.textContent = `✓ ${(diff/60).toFixed(2)} hrs logged`; fieldState.endtime = true; updateLabor(diff); }
+  checkSaveReady();
+}
+function onEndTimeBlur() { validateEndTime(true); }
+function updateLabor(mins) {
+  const el = document.getElementById('f-labortime'), bh = document.getElementById('f-billablehrs');
+  if (!mins) { el.textContent = '—'; bh.textContent = '0.00'; return; }
+  const hrs = (mins/60).toFixed(2); el.textContent = hrs + ' hrs'; bh.textContent = hrs;
+}
+
+function onDescriptionBlur() {
+  const v = document.getElementById('f-description').value.trim(), hint = document.getElementById('hint-description');
+  fieldState.description = v.length > 0;
+  hint.className = fieldState.description ? 'field-hint ok' : 'field-hint tip';
+  hint.textContent = fieldState.description ? '✓ Description added' : 'Optional — add notes about the work performed';
+  const row = document.getElementById('fp-description');
+  if (fieldState.description) { row.classList.add('done'); row.querySelector('.fp-icon').textContent = '✓'; }
+  else { row.classList.remove('done'); row.querySelector('.fp-icon').textContent = '○'; }
+  checkSaveReady();
+}
+
+function checkSaveReady() {
+  const ready = ['client','matter','activity','entrytype','endtime'].every(k => fieldState[k]);
+  document.getElementById('saveBtn').disabled = !ready;
+  Object.keys(fieldState).forEach(k => { const row = document.getElementById('fp-'+k); if (row && fieldState[k]) { row.classList.add('done'); row.querySelector('.fp-icon').textContent = '✓'; } });
+}
+
+function trySave() {
+  if (!['client','matter','activity','entrytype','endtime'].every(k => fieldState[k])) return;
+  document.getElementById('simForm').style.display = 'none';
+  document.getElementById('simSuccess').classList.add('show');
+  document.getElementById('ss-matter').textContent = document.getElementById('f-matter').value;
+  document.getElementById('ss-time').textContent = startTimeStr + ' – ' + document.getElementById('f-endtime').value;
+}
+
+function resetForm() {
+  ['f-client','f-matter','f-activity','f-endtime'].forEach(id => { const el = document.getElementById(id); el.value = ''; el.className = 'sim-input'; });
+  document.getElementById('f-entrytype').value = ''; document.getElementById('f-entrytype').className = 'sim-select';
+  document.getElementById('f-description').value = '';
+  Object.keys(fieldState).forEach(k => { fieldState[k] = false; const h = document.getElementById('hint-'+k); if (h) h.textContent = ''; const row = document.getElementById('fp-'+k); if (row) { row.classList.remove('done','active'); row.querySelector('.fp-icon').textContent = '○'; } });
+  updateLabor(null); document.getElementById('saveBtn').disabled = true;
+  document.getElementById('simSuccess').classList.remove('show'); document.getElementById('simForm').style.display = '';
+  document.getElementById('coachFieldName').textContent = 'Get started';
+  document.getElementById('coachTip').textContent = 'Click any field in the form to begin. Each field has specific requirements.';
+}
+
+updateNav();
+</script>
+</body>
+</html>
